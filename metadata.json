@@ -1,0 +1,6 @@
+{
+  "name": "Boyobot 3D Çiz & Boya",
+  "description": "Çocuklar için 3D çizim, boyama ve yapay zeka ile canlandırma stüdyosu",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
