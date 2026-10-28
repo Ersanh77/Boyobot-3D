@@ -400,13 +400,25 @@ function paintOnMeshCanvasTexture(
     ctx.fill();
   } else if (tool === 'spray') {
     ctx.fillStyle = colorHex;
-    const radius = brushSize * 2.5;
-    for (let i = 0; i < 14; i++) {
-      const offsetX = (Math.random() - 0.5) * radius * 2;
-      const offsetY = (Math.random() - 0.5) * radius * 2;
-      ctx.beginPath();
-      ctx.arc(currentX + offsetX, currentY + offsetY, Math.random() * 1.5 + 0.5, 0, Math.PI * 2);
-      ctx.fill();
+    const radius = Math.max(4, brushSize * 3.2);
+    const dist = Math.hypot(currentX - prevX, currentY - prevY);
+    const stepSize = Math.max(2, brushSize * 1.2);
+    const steps = isSeamless && dist > 0 ? Math.max(1, Math.ceil(dist / stepSize)) : 1;
+    const particlesPerStep = Math.max(12, Math.round(brushSize * 4.5));
+
+    for (let s = 0; s < steps; s++) {
+      const t = steps === 1 ? 1 : s / (steps - 1);
+      const cx = prevX + (currentX - prevX) * t;
+      const cy = prevY + (currentY - prevY) * t;
+
+      for (let i = 0; i < particlesPerStep; i++) {
+        const r = Math.sqrt(Math.random()) * radius;
+        const angle = Math.random() * Math.PI * 2;
+        const pSize = Math.random() * 1.4 + 0.6;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r, pSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   } else {
     // Standard brush / eyebrow / eyelash / nose / mouth / fine_detail
@@ -483,6 +495,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
   const isPaintingSurfaceRef = useRef(false);
   const lastUVRef = useRef<THREE.Vector2 | null>(null);
   const lastHitMeshRef = useRef<THREE.Mesh | null>(null);
+  const sprayIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPointerPosRef = useRef<{ clientX: number; clientY: number } | null>(null);
 
   // Props ref for continuous rendering without re-binding listeners
   const propsRef = useRef({
@@ -866,6 +880,10 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+      if (sprayIntervalRef.current) {
+        clearInterval(sprayIntervalRef.current);
+        sprayIntervalRef.current = null;
+      }
 
       if (modelGroupRef.current) {
         disposeObjectTree(modelGroupRef.current);
@@ -1124,6 +1142,28 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
         if (hit && hit.uv && hit.object instanceof THREE.Mesh) {
           isPaintingSurfaceRef.current = true;
           lastHitMeshRef.current = hit.object;
+          lastPointerPosRef.current = { clientX: e.clientX, clientY: e.clientY };
+
+          if (propsRef.current.activeTool === 'spray') {
+            playSpray();
+            if (sprayIntervalRef.current) clearInterval(sprayIntervalRef.current);
+            sprayIntervalRef.current = setInterval(() => {
+              if (isPaintingSurfaceRef.current && propsRef.current.activeTool === 'spray' && lastPointerPosRef.current) {
+                const curHit = raycastIntersection(lastPointerPosRef.current.clientX, lastPointerPosRef.current.clientY);
+                if (curHit && curHit.uv && curHit.object instanceof THREE.Mesh) {
+                  paintOnMeshCanvasTexture(
+                    curHit.object,
+                    curHit.uv,
+                    'spray',
+                    propsRef.current.activeColor,
+                    propsRef.current.brushSize,
+                    lastUVRef
+                  );
+                }
+              }
+            }, 50);
+          }
+
           paintOnMeshCanvasTexture(
             hit.object,
             hit.uv,
@@ -1145,6 +1185,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
     if (!activePointersRef.current.has(e.pointerId)) return;
 
     if (isPaintingSurfaceRef.current) {
+      lastPointerPosRef.current = { clientX: e.clientX, clientY: e.clientY };
       const hit = raycastIntersection(e.clientX, e.clientY);
       if (hit && hit.uv && hit.object instanceof THREE.Mesh) {
         if (lastHitMeshRef.current !== hit.object) {
@@ -1200,6 +1241,12 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
     } catch {
       // safe ignore
     }
+
+    if (sprayIntervalRef.current) {
+      clearInterval(sprayIntervalRef.current);
+      sprayIntervalRef.current = null;
+    }
+    lastPointerPosRef.current = null;
 
     const paintedMesh = lastHitMeshRef.current;
     const wasPainting = isPaintingSurfaceRef.current;
