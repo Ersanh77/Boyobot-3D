@@ -96,88 +96,116 @@ export const ALL_MODELS: ModelDefinition[] = [
   { id: 'treehouse', name: 'Macera Ağaç Ev', category: 'houses', emoji: '🌲', desc: 'Ağaç dalları üzerine kurulmuş eğlenceli macera evi!' },
 ];
 
+export function extractBaseColor(spec?: string, fallback: string = '#ffffff'): string {
+  if (!spec) return fallback;
+  if (spec.startsWith('glitter:')) {
+    return spec.replace('glitter:', '');
+  }
+  if (spec.startsWith('pattern:')) {
+    const pat = spec.replace('pattern:', '');
+    if (pat === 'rainbow') return '#ec4899';
+    if (pat === 'polka' || pat === 'polka_dots') return '#f59e0b';
+    if (pat === 'stripes') return '#3b82f6';
+    if (pat === 'stars') return '#8b5cf6';
+    if (pat === 'hearts') return '#f43f5e';
+    if (pat === 'kawaii_face') return '#f472b6';
+    return '#ffffff';
+  }
+  return spec;
+}
+
+export function sanitizeColorsForModelCreation(colors?: Record<string, string>): Record<string, string> {
+  if (!colors) return {};
+  const cleaned: Record<string, string> = {};
+  for (const [key, spec] of Object.entries(colors)) {
+    cleaned[key] = extractBaseColor(spec);
+  }
+  return cleaned;
+}
+
 export function instantiate3DModel(modelId: ModelId, colors?: Record<string, string>): THREE.Group {
+  const safeColors = sanitizeColorsForModelCreation(colors);
   switch (modelId) {
     // Animals & Classics
     case 'kitty':
-      return createKitty(colors);
+      return createKitty(safeColors);
     case 'dog':
-      return createDog(colors);
+      return createDog(safeColors);
     case 'rabbit':
-      return createRabbit(colors);
+      return createRabbit(safeColors);
     case 'cow':
-      return createCow(colors);
+      return createCow(safeColors);
     case 'sheep':
-      return createSheep(colors);
+      return createSheep(safeColors);
     case 'horse':
-      return createHorse(colors);
+      return createHorse(safeColors);
     case 'chick':
-      return createChick(colors);
+      return createChick(safeColors);
     case 'penguin':
-      return createPenguin(colors);
+      return createPenguin(safeColors);
     case 'dragon':
-      return createBabyDragon(colors);
+      return createBabyDragon(safeColors);
     case 'dino':
-      return createDino(colors);
+      return createDino(safeColors);
     case 'turtle':
-      return createTurtle(colors);
+      return createTurtle(safeColors);
     case 'unicorn':
-      return createUnicorn(colors);
+      return createUnicorn(safeColors);
     case 'lion':
-      return createLion(colors);
+      return createLion(safeColors);
     case 'butterfly':
-      return createButterfly(colors);
+      return createButterfly(safeColors);
     case 'dolphin':
-      return createDolphin(colors);
+      return createDolphin(safeColors);
     case 'panda':
-      return createPanda(colors);
+      return createPanda(safeColors);
 
     case 'rocket':
-      return createRocket(colors);
+      return createRocket(safeColors);
     case 'castle':
-      return createCastle(colors);
+      return createCastle(safeColors);
     case 'robot':
-      return createRobot(colors);
+      return createRobot(safeColors);
 
     // Flowers
     case 'sunflower':
-      return createSunflower(colors);
+      return createSunflower(safeColors);
     case 'rose':
-      return createRose(colors);
+      return createRose(safeColors);
     case 'daisy':
-      return createDaisy(colors);
+      return createDaisy(safeColors);
     case 'tulip':
-      return createTulip(colors);
+      return createTulip(safeColors);
 
     // Fruits
     case 'apple':
-      return createApple(colors);
+      return createApple(safeColors);
     case 'banana':
-      return createBanana(colors);
+      return createBanana(safeColors);
     case 'strawberry':
-      return createStrawberry(colors);
+      return createStrawberry(safeColors);
     case 'watermelon':
-      return createWatermelon(colors);
+      return createWatermelon(safeColors);
 
     // Vegetables
     case 'carrot':
-      return createCarrot(colors);
+      return createCarrot(safeColors);
     case 'broccoli':
-      return createBroccoli(colors);
+      return createBroccoli(safeColors);
     case 'tomato':
-      return createTomato(colors);
+      return createTomato(safeColors);
     case 'corn':
-      return createCorn(colors);
+      return createCorn(safeColors);
 
     // Houses
     case 'cottage':
-      return createCottage(colors);
+      return createCottage(safeColors);
     case 'mushroom_house':
-      return createMushroomHouse(colors);
+      return createMushroomHouse(safeColors);
     case 'treehouse':
-      return createTreehouse(colors);
+      return createTreehouse(safeColors);
 
     default:
-      return createKitty(colors);
+      return createKitty(safeColors);
   }
 }

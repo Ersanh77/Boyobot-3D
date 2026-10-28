@@ -15,6 +15,7 @@ interface RightPaletteProps {
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
   onUndo?: () => void;
+  onRedo?: () => void;
   onClearStickers?: () => void;
 }
 
@@ -31,6 +32,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
   brushSize,
   onBrushSizeChange,
   onUndo,
+  onRedo,
   onClearStickers,
 }) => {
   // Main Tabs: 'paint' (Boya & Renkler), 'accessories' (Aksesuarlar & Süsler)
@@ -86,6 +88,14 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
 
   const currentEmojiList = accessories[accessoryCat].emojis;
 
+  // Keep colorCategory synced with activeColorType from props
+  React.useEffect(() => {
+    if (activeColorType) {
+      setColorCategory(activeColorType);
+    }
+  }, [activeColorType]);
+
+  // Color Category Tabs
   return (
     <aside
       aria-label="Boyama ve Aksesuar Paneli"
@@ -222,6 +232,9 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
                   onClick={() => {
                     cat.id === 'solid' ? playPop() : playMagic();
                     setColorCategory(cat.id as any);
+                    if (cat.id === 'solid') onSelectColor(solidColors[0]);
+                    else if (cat.id === 'glitter') onSelectColor(glitterColors[0]);
+                    else if (cat.id === 'pattern') onSelectColor(patternColors[0]);
                   }}
                   className={`py-2 px-1 rounded-xl text-[9px] sm:text-[10px] font-black transition-all duration-200 text-center cursor-pointer flex items-center justify-center gap-1 btn-press ${
                     isActive
@@ -294,13 +307,22 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onUndo}
-            className="w-full mt-1 py-3 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 rounded-2xl text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer border-2 border-purple-200 btn-press shadow-xs"
-          >
-            <span className="text-sm">↩️</span>
-            <span>Geri Al</span>
-          </button>
+          <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
+            <button
+              onClick={onUndo}
+              className="py-2.5 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 rounded-2xl text-[10px] sm:text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-1 cursor-pointer border-2 border-purple-200 btn-press shadow-xs"
+            >
+              <span className="text-xs">↩️</span>
+              <span>Geri Al</span>
+            </button>
+            <button
+              onClick={onRedo}
+              className="py-2.5 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 rounded-2xl text-[10px] sm:text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-1 cursor-pointer border-2 border-indigo-200 btn-press shadow-xs"
+            >
+              <span className="text-xs">↪️</span>
+              <span>Yinele</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -387,18 +409,27 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
 
           {/* Control Buttons */}
           <div className="flex flex-col gap-2 mt-1">
-            <button
-              onClick={onUndo}
-              className="w-full py-3 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 rounded-2xl text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer border-2 border-purple-200 btn-press shadow-xs"
-            >
-              <span className="text-sm">↩️</span>
-              <span>Geri Al</span>
-            </button>
+            <div className="grid grid-cols-2 gap-1.5 w-full">
+              <button
+                onClick={onUndo}
+                className="py-2.5 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 rounded-2xl text-[10px] sm:text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-1 cursor-pointer border-2 border-purple-200 btn-press shadow-xs"
+              >
+                <span className="text-xs">↩️</span>
+                <span>Geri Al</span>
+              </button>
+              <button
+                onClick={onRedo}
+                className="py-2.5 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 rounded-2xl text-[10px] sm:text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-1 cursor-pointer border-2 border-indigo-200 btn-press shadow-xs"
+              >
+                <span className="text-xs">↪️</span>
+                <span>Yinele</span>
+              </button>
+            </div>
             <button
               onClick={onClearStickers}
-              className="w-full py-3 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 rounded-2xl text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer border-2 border-rose-200 btn-press shadow-xs"
+              className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 rounded-2xl text-[10px] sm:text-[11px] font-black transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer border-2 border-rose-200 btn-press shadow-xs"
             >
-              <span className="text-sm">🗑️</span>
+              <span className="text-xs">🗑️</span>
               <span>Süsleri Temizle</span>
             </button>
           </div>

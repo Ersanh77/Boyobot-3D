@@ -37,6 +37,10 @@ interface ThreeCanvasProps {
   stickerSize: number;
   studioThemeId: StudioThemeId;
   activeAccessories: AccessoryId[];
+  canvasMaps?: Record<string, string>;
+  onSaveCanvasMap?: (part: string, dataUrl: string) => void;
+  cameraOrbit?: { theta: number; phi: number; distance: number };
+  onSaveCameraOrbit?: (orbit: { theta: number; phi: number; distance: number }) => void;
 }
 
 // Deep disposal helper to eliminate Three.js memory leaks
@@ -72,6 +76,237 @@ function disposeObjectTree(root: THREE.Object3D | null) {
   });
 }
 
+// Helper to apply solid color, glitter, or pattern specs reliably
+export function applyColorSpecToMesh(mesh: THREE.Mesh, rawSpec: string) {
+  if (!mesh || !(mesh as THREE.Mesh).isMesh || !rawSpec) return;
+
+  let type: 'solid' | 'glitter' | 'pattern' = 'solid';
+  let colorVal = rawSpec;
+  let patternId = 'spots';
+
+  if (rawSpec.startsWith('glitter:')) {
+    type = 'glitter';
+    colorVal = rawSpec.replace('glitter:', '');
+  } else if (rawSpec.startsWith('pattern:')) {
+    type = 'pattern';
+    patternId = rawSpec.replace('pattern:', '');
+  }
+
+  if (!mesh.material) return;
+  const currentMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  if (!currentMat.userData.isUnique) {
+    mesh.material = currentMat.clone();
+    (mesh.material as THREE.Material).userData.isUnique = true;
+  }
+  const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+
+  if (type === 'glitter') {
+    mesh.userData.isPaintedCanvas = false;
+    mesh.userData.canvas = null;
+    mesh.userData.ctx = null;
+    mesh.userData.texture = null;
+    const glitterTex = createGlitterTexture(colorVal);
+    if (mat.map && mat.map !== glitterTex) {
+      try { mat.map.dispose(); } catch {}
+    }
+    mat.map = glitterTex;
+    mat.color.set('#ffffff');
+    mat.needsUpdate = true;
+  } else if (type === 'pattern') {
+    mesh.userData.isPaintedCanvas = false;
+    mesh.userData.canvas = null;
+    mesh.userData.ctx = null;
+    mesh.userData.texture = null;
+    const patTex = createPatternTexture(patternId);
+    if (mat.map && mat.map !== patTex) {
+      try { mat.map.dispose(); } catch {}
+    }
+    mat.map = patTex;
+    mat.color.set('#ffffff');
+    mat.needsUpdate = true;
+  } else {
+    // Solid color (Düz Boya) - smooth, clean surface without dotted or glitter textures
+    mesh.userData.isPaintedCanvas = false;
+    mesh.userData.canvas = null;
+    mesh.userData.ctx = null;
+    mesh.userData.texture = null;
+    if (mat.map) {
+      try { mat.map.dispose(); } catch {}
+      mat.map = null;
+    }
+    mat.color.set(colorVal);
+    mat.needsUpdate = true;
+  }
+}
+
+// Resolve part name for any Mesh by walking up parent tree
+export function getPartNameForObject(obj: THREE.Object3D | null): string {
+  let curr: THREE.Object3D | null = obj;
+  while (curr && curr.type !== 'Scene') {
+    if (
+      curr.name &&
+      curr.name !== 'scene' &&
+      curr.name !== 'root' &&
+      !curr.name.startsWith('face_expression') &&
+      !curr.name.endsWith('_accessory')
+    ) {
+      return curr.name;
+    }
+    curr = curr.parent;
+  }
+  return 'body';
+}
+
+// Resolve deterministic unique mesh key inside the root 3D model group
+export function getMeshKey(mesh: THREE.Mesh, rootGroup: THREE.Object3D | null): string {
+  if (!mesh || !rootGroup) return mesh.name || 'mesh_0';
+
+  let meshIndex = 0;
+  let targetIndex = -1;
+
+  rootGroup.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      if (child === mesh) {
+        targetIndex = meshIndex;
+      }
+      meshIndex++;
+    }
+  });
+
+  const partName = getPartNameForObject(mesh);
+  const specificName = mesh.name || '';
+
+  if (specificName && specificName !== partName && !specificName.startsWith('mesh')) {
+    return `${specificName}_${targetIndex}`;
+  }
+
+  return `${partName}_${targetIndex}`;
+}
+
+// Apply saved specs to all meshes in model group
+export function applySavedSpecsToModelGroup(
+  group: THREE.Group | null,
+  modelPartColors: Record<string, string>,
+  canvasMaps?: Record<string, string>,
+  currentModel?: ModelId
+) {
+  if (!group) return;
+
+  const restoredLegacyParts = new Set<string>();
+
+  // Excluded part names that should NEVER inherit legacy unindexed canvasMaps
+  const EXCLUDED_CANVAS_PARTS = new Set([
+    'tongue', 'blush', 'blush_l', 'blush_r', 'glint', 'eye_iris_l', 'eye_iris_r',
+    'eye_pupil_l', 'eye_pupil_r', 'nose', 'mouth', 'face', 'face_expression', 'eyes',
+    'inner_ears', 'teeth', 'critters'
+  ]);
+
+  group.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      const partName = getPartNameForObject(mesh);
+      const lowerPart = partName.toLowerCase();
+      const meshKey = getMeshKey(mesh, group);
+
+      let spec = modelPartColors[partName] || modelPartColors[lowerPart];
+
+      if (!spec && lowerPart.startsWith('leg_')) {
+        spec = modelPartColors['legs'] || modelPartColors['paws'] || modelPartColors['feet'];
+      }
+      if (!spec && lowerPart.startsWith('feet_')) {
+        spec = modelPartColors['feet'] || modelPartColors['legs'];
+      }
+      if (!spec && lowerPart === 'head' && currentModel === 'dolphin') {
+        spec = modelPartColors['body'];
+      }
+      if (!spec && lowerPart === 'eye_iris_l') {
+        spec = modelPartColors['eye_iris_L'] || modelPartColors['eyes'];
+      }
+      if (!spec && lowerPart === 'eye_iris_r') {
+        spec = modelPartColors['eye_iris_R'] || modelPartColors['eyes'];
+      }
+
+      if (spec) {
+        applyColorSpecToMesh(mesh, spec);
+      }
+
+      // Check unique meshKey first
+      const canvasUrl = canvasMaps?.[meshKey];
+      if (canvasUrl) {
+        restoreCanvasMapOnMesh(mesh, canvasUrl);
+      } else {
+        // Fallback for legacy unindexed canvas maps: ONLY apply if it's not an excluded detail part
+        if (!EXCLUDED_CANVAS_PARTS.has(lowerPart)) {
+          const legacyUrl = canvasMaps?.[partName] || canvasMaps?.[lowerPart];
+          if (legacyUrl && !restoredLegacyParts.has(lowerPart)) {
+            const isPrimary = mesh.name === partName || mesh.name === lowerPart || meshKey.startsWith(partName + '_') || meshKey.startsWith(lowerPart + '_');
+            if (isPrimary) {
+              restoredLegacyParts.add(lowerPart);
+              restoreCanvasMapOnMesh(mesh, legacyUrl);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Apply spec to all meshes matching a target part name
+export function applyColorSpecToPartName(group: THREE.Group | null, targetPartName: string, spec: string) {
+  if (!group || !targetPartName || !spec) return;
+  const targetLower = targetPartName.toLowerCase();
+
+  group.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      const partName = getPartNameForObject(mesh);
+      const lower = partName.toLowerCase();
+
+      let match = (lower === targetLower);
+      if (!match && targetLower === 'legs' && lower.startsWith('leg_')) match = true;
+      if (!match && targetLower === 'feet' && lower.startsWith('feet_')) match = true;
+      if (!match && targetLower === 'paws' && (lower.startsWith('leg_') || lower === 'paws')) match = true;
+      if (!match && targetLower === 'eyes' && (lower === 'eye_iris_l' || lower === 'eye_iris_r' || lower === 'eyes')) match = true;
+
+      if (match) {
+        applyColorSpecToMesh(mesh, spec);
+      }
+    }
+  });
+}
+
+// Helper to restore saved canvas texture onto mesh
+function restoreCanvasMapOnMesh(mesh: THREE.Mesh, dataUrl: string) {
+  if (!dataUrl || !mesh || !(mesh as THREE.Mesh).isMesh) return;
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0, 512, 512);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    const currentMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    if (!currentMat.userData.isUnique) {
+      mesh.material = currentMat.clone();
+      (mesh.material as THREE.Material).userData.isUnique = true;
+    }
+    const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+    mat.color.set('#ffffff');
+    mat.map = texture;
+    mat.needsUpdate = true;
+
+    mesh.userData.canvas = canvas;
+    mesh.userData.ctx = ctx;
+    mesh.userData.texture = texture;
+    mesh.userData.isPaintedCanvas = true;
+  };
+  img.src = dataUrl;
+}
+
 // Helper to paint directly onto dynamic mesh CanvasTexture via hit UV
 function paintOnMeshCanvasTexture(
   hitMesh: THREE.Mesh,
@@ -84,6 +319,8 @@ function paintOnMeshCanvasTexture(
   const mat = hitMesh.material as THREE.MeshStandardMaterial;
   if (!mat) return;
 
+  hitMesh.userData.isPaintedCanvas = true;
+
   // Initialize dynamic canvas for hitMesh if not already created
   if (!hitMesh.userData.canvas) {
     const canvas = document.createElement('canvas');
@@ -91,10 +328,20 @@ function paintOnMeshCanvasTexture(
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
-    // Fill initial canvas with current material base color
     const baseColor = mat.color ? '#' + mat.color.getHexString() : '#ffffff';
-    ctx.fillStyle = baseColor;
-    ctx.fillRect(0, 0, 512, 512);
+
+    // Preserve existing background image or pattern if present
+    if (mat.map && mat.map.image) {
+      try {
+        ctx.drawImage(mat.map.image as HTMLImageElement, 0, 0, 512, 512);
+      } catch {
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(0, 0, 512, 512);
+      }
+    } else {
+      ctx.fillStyle = baseColor;
+      ctx.fillRect(0, 0, 512, 512);
+    }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -209,6 +456,10 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
   stickerSize,
   studioThemeId,
   activeAccessories,
+  canvasMaps,
+  onSaveCanvasMap,
+  cameraOrbit,
+  onSaveCameraOrbit,
 }) => {
   const activeStudioTheme = STUDIO_THEMES.find((t) => t.id === studioThemeId) || STUDIO_THEMES[0];
   const mountRef = useRef<HTMLDivElement>(null);
@@ -245,6 +496,9 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
     animationAction,
     brushSize,
     stickerSize,
+    canvasMaps,
+    onSaveCanvasMap,
+    onSaveCameraOrbit,
   });
 
   useEffect(() => {
@@ -259,8 +513,19 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
       animationAction,
       brushSize,
       stickerSize,
+      canvasMaps,
+      onSaveCanvasMap,
+      onSaveCameraOrbit,
     };
-  }, [mode, activeTool, activeColor, activeColorType, activeStickerEmoji, modelPartColors, isAnimating, animationAction, brushSize, stickerSize]);
+  }, [mode, activeTool, activeColor, activeColorType, activeStickerEmoji, modelPartColors, isAnimating, animationAction, brushSize, stickerSize, canvasMaps, onSaveCanvasMap, onSaveCameraOrbit]);
+
+  // Restore or reset camera orbit on model change or saved orbit update
+  useEffect(() => {
+    if (cameraOrbit) {
+      targetOrbitRef.current = { ...cameraOrbit };
+      cameraOrbitRef.current = { ...cameraOrbit };
+    }
+  }, [currentModel, cameraOrbit]);
 
   // Adjust camera distance based on zoomLevel & rotationOffset
   useEffect(() => {
@@ -421,7 +686,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
         // ALWAYS ON animations (like butterfly hovering, dolphin leaping wave)
         if (modelGroupRef.current.userData.isFlying) {
            const hoverT = elapsed * 2.0;
-           // If not in a specific animation mode, apply base hovering
            if (!propsRef.current.isAnimating) {
              modelGroupRef.current.position.y = 0.5 + Math.sin(hoverT) * 0.2;
              modelGroupRef.current.rotation.z = Math.sin(hoverT * 0.5) * 0.05;
@@ -447,7 +711,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
           }
           if (child.userData.isWingFlap) {
             const flapT = elapsed * 2.4;
-            // Smooth opening and closing wave (0 = closed against flanks, 1 = opened wide)
             const openFactor = Math.sin(flapT) * 0.5 + 0.5;
             const maxAngle = child.userData.maxFlap || 0.68;
             const side = child.userData.side || 1;
@@ -494,7 +757,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
         if (propsRef.current.isAnimating) {
           const action = propsRef.current.animationAction;
           if (action === 'jump') {
-            // Cartoon Squash & Stretch Jump Physics
             const jumpPhase = Math.sin(elapsed * 6);
             const jumpHeight = Math.max(0, jumpPhase);
             modelGroupRef.current.position.y = jumpHeight * 1.8;
@@ -502,16 +764,13 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
             modelGroupRef.current.position.z = 0;
 
             if (jumpHeight < 0.08) {
-              // Squash on ground landing
               modelGroupRef.current.scale.set(1.18, 0.82, 1.18);
               modelGroupRef.current.rotation.set(0, 0, 0);
             } else {
-              // Stretch in mid-air
               modelGroupRef.current.scale.set(0.9, 1.18, 0.9);
               modelGroupRef.current.rotation.z = Math.sin(elapsed * 4) * 0.1;
             }
           } else if (action === 'fly') {
-            // Flying: 1.5m elevation, Figure-8 gliding path
             const t = elapsed * 2.2;
             modelGroupRef.current.position.y = 1.8 + Math.sin(t * 1.5) * 0.4;
             modelGroupRef.current.position.x = Math.sin(t) * 1.1;
@@ -522,7 +781,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
             modelGroupRef.current.rotation.y = Math.sin(t * 0.5) * 0.6;
             modelGroupRef.current.rotation.x = Math.sin(t * 1.5) * 0.15;
           } else if (action === 'confetti') {
-            // Confetti: Fast joyful spin & bounce
             modelGroupRef.current.position.y = Math.abs(Math.sin(elapsed * 5)) * 0.35;
             modelGroupRef.current.position.x = 0;
             modelGroupRef.current.position.z = 0;
@@ -530,7 +788,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
             modelGroupRef.current.rotation.y += delta * 4.5;
             modelGroupRef.current.rotation.z = Math.sin(elapsed * 6) * 0.1;
 
-            // Spawn 3D sparkle/confetti particles continuously
             if (particlesGroupRef.current && Math.random() < 0.4) {
               const isKawaii = activeWorld === 'kawaii';
               const pGeo = isKawaii && Math.random() > 0.5 ? new THREE.SphereGeometry(0.1, 4, 2) : new THREE.SphereGeometry(0.08, 8, 8);
@@ -541,7 +798,6 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
               particlesGroupRef.current.add(pMesh);
             }
           } else {
-            // Dance: Rhythmic sway & springy bounce
             const danceT = elapsed * 5;
             modelGroupRef.current.position.y = Math.abs(Math.sin(danceT)) * 0.38;
             modelGroupRef.current.position.x = Math.sin(danceT * 0.5) * 0.2;
@@ -551,13 +807,11 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
             modelGroupRef.current.rotation.y = Math.sin(danceT * 0.5) * 0.35;
           }
         } else {
-          // Idle peaceful standing pose
           if (propsRef.current.mode === 'draw_3d') {
             modelGroupRef.current.position.set(0, 1.4, 0);
             modelGroupRef.current.rotation.set(-0.1, 0.2, 0);
           } else {
             if (modelGroupRef.current.userData.isFlying || modelGroupRef.current.userData.isLeaping) {
-              // Position and tilt dynamically updated in always-on block
             } else {
               modelGroupRef.current.position.set(0, 0, 0);
               modelGroupRef.current.rotation.set(0, 0, 0);
@@ -579,7 +833,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
         }
       }
 
-      // Animate Environment Decorations (Hearts, Stars)
+      // Animate Environment Decorations
       if (envGroupRef.current) {
         envGroupRef.current.traverse((child) => {
           if (child.userData.isFloating) {
@@ -661,9 +915,11 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
     if (mode === 'draw_3d' && drawingCanvasRef.current) {
       newModel = create3DFromDrawing(drawingCanvasRef.current, drawingMaterial);
     } else {
-      // Pass the colors record to the initial instantiation for consistent start
       newModel = instantiate3DModel(currentModel, modelPartColors);
     }
+
+    // Restore saved color specs & canvas texture maps onto the instantiated model
+    applySavedSpecsToModelGroup(newModel, modelPartColors, canvasMaps, currentModel);
 
     modelGroupRef.current = newModel;
     scene.add(newModel);
@@ -674,30 +930,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
     const group = modelGroupRef.current;
     if (!group) return;
 
-    // Traverse the existing model and update material colors based on the state record
-    group.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        const name = mesh.name || '';
-        const lowerName = name.toLowerCase();
-        let color = modelPartColors[name] || modelPartColors[lowerName];
-        if (!color && lowerName.startsWith('leg_')) {
-          color = modelPartColors['legs'];
-        }
-        if (!color && lowerName === 'head' && currentModel === 'dolphin') {
-          color = modelPartColors['body'];
-        }
-
-        if (color && mesh.material && 'color' in mesh.material) {
-          const mat = mesh.material as THREE.MeshStandardMaterial;
-          if ('#' + mat.color.getHexString() !== color.toLowerCase()) {
-            mat.color.set(color);
-            mat.needsUpdate = true;
-          }
-        }
-      }
-    });
-  }, [modelPartColors]);
+    applySavedSpecsToModelGroup(group, modelPartColors, canvasMaps, currentModel);
+  }, [modelPartColors, currentModel]);
 
   // Update Environment
   useEffect(() => {
@@ -967,10 +1201,21 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
       // safe ignore
     }
 
+    const paintedMesh = lastHitMeshRef.current;
     const wasPainting = isPaintingSurfaceRef.current;
     isPaintingSurfaceRef.current = false;
     lastUVRef.current = null;
     lastHitMeshRef.current = null;
+
+    if (wasPainting && paintedMesh && paintedMesh.userData.canvas && propsRef.current.onSaveCanvasMap) {
+      try {
+        const dataUrl = (paintedMesh.userData.canvas as HTMLCanvasElement).toDataURL('image/png');
+        const meshKey = getMeshKey(paintedMesh, modelGroupRef.current);
+        propsRef.current.onSaveCanvasMap(meshKey, dataUrl);
+      } catch (err) {
+        console.warn('Canvas save error:', err);
+      }
+    }
 
     const wasSingle = activePointersRef.current.size === 1;
     const hadMulti = wasMultiTouchRef.current;
@@ -982,6 +1227,9 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
 
     if (activePointersRef.current.size === 0) {
       wasMultiTouchRef.current = false;
+      if (!wasPainting && propsRef.current.onSaveCameraOrbit) {
+        propsRef.current.onSaveCameraOrbit({ ...targetOrbitRef.current });
+      }
     }
 
     // Handle single tap for Bucket or Sticker
@@ -1007,57 +1255,23 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = memo(({
 
     const { activeTool, activeColor, activeColorType, activeStickerEmoji } = propsRef.current;
 
-    // Bucket Tool: Recolor target hit mesh
+    // Bucket Tool: Recolor target hit mesh and all sibling meshes belonging to part
     if (activeTool === 'bucket') {
-      const partName = hitMesh.name || 'body';
+      const partName = getPartNameForObject(hitMesh);
       playPop();
 
+      let spec = activeColor;
       if (activeColorType === 'glitter') {
-        const glitterTex = createGlitterTexture(activeColor);
-        const mat = hitMesh.material as THREE.MeshStandardMaterial;
-        if (mat) {
-          if (!mat.userData.isUnique) {
-            hitMesh.material = mat.clone();
-            (hitMesh.material as THREE.MeshStandardMaterial).userData.isUnique = true;
-          }
-          const newMat = hitMesh.material as THREE.MeshStandardMaterial;
-          if (newMat.map) newMat.map.dispose();
-          newMat.map = glitterTex;
-          newMat.needsUpdate = true;
-        }
+        spec = `glitter:${activeColor}`;
       } else if (activeColorType === 'pattern') {
         const patternId = activeColor.startsWith('#') ? 'spots' : activeColor;
-        const patTex = createPatternTexture(patternId);
-        const mat = hitMesh.material as THREE.MeshStandardMaterial;
-        if (mat) {
-          if (!mat.userData.isUnique) {
-            hitMesh.material = mat.clone();
-            (hitMesh.material as THREE.MeshStandardMaterial).userData.isUnique = true;
-          }
-          const newMat = hitMesh.material as THREE.MeshStandardMaterial;
-          if (newMat.map) newMat.map.dispose();
-          newMat.map = patTex;
-          newMat.needsUpdate = true;
-        }
-      } else {
-        const mat = hitMesh.material as THREE.MeshStandardMaterial;
-        if (mat) {
-          if (!mat.userData.isUnique) {
-            hitMesh.material = mat.clone();
-            (hitMesh.material as THREE.MeshStandardMaterial).userData.isUnique = true;
-          }
-          const newMat = hitMesh.material as THREE.MeshStandardMaterial;
-          if (newMat.map) {
-            newMat.map.dispose();
-            newMat.map = null;
-          }
-          newMat.color.set(activeColor);
-          newMat.needsUpdate = true;
-        }
+        spec = `pattern:${patternId}`;
       }
 
+      applyColorSpecToPartName(modelGroupRef.current, partName, spec);
+
       const resolvedPartName = (currentModel === 'dolphin' && partName === 'head') ? 'body' : partName;
-      onModelPartColorChange(resolvedPartName, activeColor);
+      onModelPartColorChange(resolvedPartName, spec);
       createSparkleBurst(hitPoint, activeColor);
     }
 

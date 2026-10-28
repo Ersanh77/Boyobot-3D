@@ -25,11 +25,13 @@ export default function App() {
     return 'unicorn';
   });
 
-  // Color & Sticker storage per model ID
-  const [modelsData, setModelsData] = useState<Record<ModelId, { colors: Record<string, string>; stickers: PlacedSticker[]; accessories: AccessoryId[] }>>(() => {
+  // Color & Sticker & Canvas storage per model ID
+  const [modelsData, setModelsData] = useState<Record<ModelId, { colors: Record<string, string>; stickers: PlacedSticker[]; accessories: AccessoryId[]; canvasMaps?: Record<string, string>; cameraOrbit?: { theta: number; phi: number; distance: number } }>>(() => {
     try {
-      const saved = localStorage.getItem('boyobot_models_data_v1');
-      if (saved) return JSON.parse(saved);
+      const savedV2 = localStorage.getItem('boyobot_models_data_v2');
+      if (savedV2) return JSON.parse(savedV2);
+      const savedV1 = localStorage.getItem('boyobot_models_data_v1');
+      if (savedV1) return JSON.parse(savedV1);
     } catch { /* fallback */ }
     return {} as any;
   });
@@ -49,17 +51,48 @@ export default function App() {
   const [stickerSize, setStickerSize] = useState(1.0);
   const [brushSize, setBrushSize] = useState<number>(2);
   const [colorHistory, setColorHistory] = useState<Record<string, string>[]>([]);
+  const [redoHistory, setRedoHistory] = useState<Record<string, string>[]>([]);
+
+  // Auto-Save & Storage State
+  const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('boyobot_autosave_enabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'failed' | 'manual_only'>('saved');
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Current model state (derived or synced)
-  const currentModelData = modelsData[currentModel] || { colors: {}, stickers: [], accessories: [] };
-  const modelPartColors = currentModelData.colors;
-  const stickers = currentModelData.stickers;
+  const currentModelData = modelsData[currentModel] || { colors: {}, stickers: [], accessories: [], canvasMaps: {} };
+  const modelPartColors = currentModelData.colors || {};
+  const stickers = currentModelData.stickers || [];
   const activeAccessories = currentModelData.accessories || [];
+  const canvasMaps = currentModelData.canvasMaps || {};
+
+  const getDisplayColor = (spec: string): string => {
+    if (!spec) return '#cccccc';
+    if (spec.startsWith('glitter:')) return spec.replace('glitter:', '');
+    if (spec.startsWith('pattern:')) {
+      const pat = spec.replace('pattern:', '');
+      if (pat === 'rainbow') return '#ec4899';
+      if (pat === 'polka') return '#f59e0b';
+      if (pat === 'stripes') return '#3b82f6';
+      if (pat === 'stars') return '#8b5cf6';
+      if (pat === 'hearts') return '#f43f5e';
+      if (pat === 'kawaii_face') return '#f472b6';
+      return '#a855f7';
+    }
+    return spec;
+  };
 
   const handleToggleAccessory = (accId: AccessoryId) => {
     playPop();
     setModelsData(prev => {
-      const current = prev[currentModel] || { colors: {}, stickers: [], accessories: [] };
+      const current = prev[currentModel] || { colors: {}, stickers: [], accessories: [], canvasMaps: {} };
       const currentAccs = current.accessories || [];
       const updatedAccs = currentAccs.includes(accId)
         ? currentAccs.filter(id => id !== accId)
@@ -106,46 +139,162 @@ export default function App() {
   const storyCacheRef = useRef<Record<string, string>>({});
   const lastActionRef = useRef<string | null>(null);
 
-  // Persistence side effect
+  // Debounced Auto-Save side effect
   useEffect(() => {
-    localStorage.setItem('boyobot_models_data_v1', JSON.stringify(modelsData));
-  }, [modelsData]);
+    if (!isAutoSaveEnabled) {
+      setSaveStatus('manual_only');
+      return;
+    }
+
+    setSaveStatus('saving');
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem('boyobot_models_data_v2', JSON.stringify(modelsData));
+        localStorage.setItem('boyobot_last_model_v1', currentModel);
+        setSaveStatus('saved');
+      } catch (err) {
+        console.warn('Auto-save storage warning:', err);
+        setSaveStatus('failed');
+      }
+    }, 1200);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    };
+  }, [modelsData, currentModel, isAutoSaveEnabled]);
+
+  const handleManualSave = () => {
+    playMagic();
+    try {
+      localStorage.setItem('boyobot_models_data_v2', JSON.stringify(modelsData));
+      localStorage.setItem('boyobot_last_model_v1', currentModel);
+      setSaveStatus('saved');
+      setBoyobotMsg(`Harika! ${modelNames[currentModel]} çalışman başarıyla kaydedildi! 💾✨`);
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+    } catch (err) {
+      setBoyobotMsg('Kayıt yapılırken bir uyarı oluştu. ⚠️');
+    }
+  };
+
+  const handleToggleAutoSave = () => {
+    playPop();
+    setIsAutoSaveEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('boyobot_autosave_enabled', JSON.stringify(next));
+      if (next) {
+        setSaveStatus('saving');
+        try {
+          localStorage.setItem('boyobot_models_data_v2', JSON.stringify(modelsData));
+          setSaveStatus('saved');
+        } catch {}
+        setBoyobotMsg('Otomatik kayıt etkinleştirildi! 🟢 Değişikliklerin anında saklanacak.');
+      } else {
+        setSaveStatus('manual_only');
+        setBoyobotMsg('Otomatik kayıt kapatıldı. Değişikliklerini "Kaydet" düğmesiyle saklayabilirsin! 💾');
+      }
+      return next;
+    });
+  };
+
+  const handleConfirmReset = () => {
+    playPop();
+    setModelsData((prev) => ({
+      ...prev,
+      [currentModel]: { colors: {}, stickers: [], accessories: [], canvasMaps: {} },
+    }));
+    setColorHistory([]);
+    setRedoHistory([]);
+    setIsResetConfirmOpen(false);
+    setBoyobotMsg(`${modelNames[currentModel]} çalışması sıfırlandı. Yepyeni bir tuval açtın! 🎨✨`);
+  };
 
   // Color change handler
   const handleModelPartColorChange = (part: string, color: string) => {
     setColorHistory((prev) => [...prev, { ...modelPartColors }]);
+    setRedoHistory([]);
     
+    let spec = color;
+    if (!color.startsWith('glitter:') && !color.startsWith('pattern:')) {
+      if (activeColorType === 'glitter') {
+        spec = `glitter:${color}`;
+      } else if (activeColorType === 'pattern') {
+        const patternId = color.startsWith('#') ? 'spots' : color;
+        spec = `pattern:${patternId}`;
+      }
+    }
+
     setModelsData(prev => {
-      const currentColors = prev[currentModel]?.colors || {};
-      let updatedColors = { ...currentColors, [part]: color };
+      const current = prev[currentModel] || { colors: {}, stickers: [], accessories: [], canvasMaps: {} };
+      let updatedColors = { ...(current.colors || {}), [part]: spec };
 
       // Meta-part: 'eyes' updates both left and right iris
       if (part === 'eyes') {
         updatedColors = {
           ...updatedColors,
-          eye_iris_L: color,
-          eye_iris_R: color,
+          eye_iris_L: spec,
+          eye_iris_R: spec,
         };
       }
+
+      // Clear any saved canvasMaps for this part so Bucket fill overrides old stroke drawings
+      const updatedCanvasMaps = { ...(current.canvasMaps || {}) };
+      const lowerPart = part.toLowerCase();
+      Object.keys(updatedCanvasMaps).forEach((key) => {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey === lowerPart || lowerKey.startsWith(lowerPart + '_')) {
+          delete updatedCanvasMaps[key];
+        }
+      });
 
       return {
         ...prev,
         [currentModel]: {
-          ...prev[currentModel],
+          ...current,
           colors: updatedColors,
-          stickers: prev[currentModel]?.stickers || []
+          canvasMaps: updatedCanvasMaps,
         }
       };
     });
 
     const model = ALL_MODELS.find((m) => m.id === currentModel);
     if (model) {
-      const actionKey = `paint_${model.id}_${part}_${color}`;
+      const actionKey = `paint_${model.id}_${part}_${spec}`;
       if (lastActionRef.current !== actionKey) {
-        checkTaskCompletion('paint', model.category, color);
+        checkTaskCompletion('paint', model.category, spec);
         lastActionRef.current = actionKey;
       }
     }
+  };
+
+  const handleSaveCanvasMap = (part: string, dataUrl: string) => {
+    setModelsData((prev) => {
+      const current = prev[currentModel] || { colors: {}, stickers: [], accessories: [], canvasMaps: {} };
+      return {
+        ...prev,
+        [currentModel]: {
+          ...current,
+          canvasMaps: {
+            ...(current.canvasMaps || {}),
+            [part]: dataUrl,
+          },
+        },
+      };
+    });
+  };
+
+  const handleSaveCameraOrbit = (orbit: { theta: number; phi: number; distance: number }) => {
+    setModelsData((prev) => {
+      const current = prev[currentModel] || { colors: {}, stickers: [], accessories: [], canvasMaps: {} };
+      return {
+        ...prev,
+        [currentModel]: {
+          ...current,
+          cameraOrbit: orbit,
+        },
+      };
+    });
   };
 
   const handleAddSticker = (newSticker: PlacedSticker) => {
@@ -169,7 +318,7 @@ export default function App() {
   };
 
   const handleAddFineDetailStroke = (stroke: FineDetailStroke) => {
-    // Note: fine details are currently transient as they live on the CanvasTexture
+    // Note: fine details live on the CanvasTexture
   };
 
   const handleUndo = () => {
@@ -187,11 +336,28 @@ export default function App() {
     if (colorHistory.length > 0) {
       const prevColors = colorHistory[colorHistory.length - 1];
       setColorHistory((h) => h.slice(0, -1));
+      setRedoHistory((r) => [...r, { ...modelPartColors }]);
       setModelsData(prev => ({
         ...prev,
         [currentModel]: {
           ...prev[currentModel],
           colors: prevColors
+        }
+      }));
+    }
+  };
+
+  const handleRedo = () => {
+    playPop();
+    if (redoHistory.length > 0) {
+      const nextColors = redoHistory[redoHistory.length - 1];
+      setRedoHistory((r) => r.slice(0, -1));
+      setColorHistory((h) => [...h, { ...modelPartColors }]);
+      setModelsData(prev => ({
+        ...prev,
+        [currentModel]: {
+          ...prev[currentModel],
+          colors: nextColors
         }
       }));
     }
@@ -209,12 +375,7 @@ export default function App() {
   };
 
   const handleReset = () => {
-    playPop();
-    setModelsData(prev => ({
-      ...prev,
-      [currentModel]: { colors: {}, stickers: [] }
-    }));
-    setColorHistory([]);
+    setIsResetConfirmOpen(true);
   };
 
   const handleRotate = () => {
@@ -241,7 +402,11 @@ export default function App() {
     setCurrentModel(id);
     localStorage.setItem('boyobot_last_model_v1', id);
     setMode('ready_models');
+    
+    // Reset transient history & active tool states on model swap
     setColorHistory([]);
+    setRedoHistory([]);
+    setActiveTool('bucket');
 
     const found = ALL_MODELS.find((m) => m.id === id);
     if (found) {
@@ -893,6 +1058,10 @@ export default function App() {
           stickerSize={stickerSize}
           studioThemeId={studioThemeId}
           activeAccessories={activeAccessories}
+          canvasMaps={canvasMaps}
+          onSaveCanvasMap={handleSaveCanvasMap}
+          cameraOrbit={currentModelData.cameraOrbit}
+          onSaveCameraOrbit={handleSaveCameraOrbit}
         />
       </div>
 
@@ -918,16 +1087,65 @@ export default function App() {
           </h1>
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-2 sm:gap-3">
+        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-end">
+          {/* Auto Save Status Badge & Toggle */}
+          <button
+            onClick={handleToggleAutoSave}
+            className={`px-2.5 sm:px-3 py-1.5 sm:py-2.5 rounded-full font-black text-[10px] sm:text-xs flex items-center gap-1 shadow-md border-b-2 transition-all cursor-pointer ${
+              saveStatus === 'saving'
+                ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
+                : saveStatus === 'saved'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                : saveStatus === 'failed'
+                ? 'bg-rose-50 text-rose-700 border-rose-300'
+                : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
+            }`}
+            title="Otomatik Kaydı Aç/Kapat"
+          >
+            <span className="text-xs sm:text-sm">
+              {saveStatus === 'saving' ? '⏳' : saveStatus === 'saved' ? '✓' : saveStatus === 'failed' ? '⚠️' : '💾'}
+            </span>
+            <span className="hidden xs:inline">
+              {saveStatus === 'saving'
+                ? 'Kaydediliyor…'
+                : saveStatus === 'saved'
+                ? 'Otomatik kaydedildi ✓'
+                : saveStatus === 'failed'
+                ? 'Kayıt başarısız'
+                : 'Oto Kapalı'}
+            </span>
+          </button>
+
+          {/* Manual Save Button */}
+          <button
+            onClick={handleManualSave}
+            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black rounded-full shadow-lg border-b-4 border-emerald-700 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1 cursor-pointer text-xs sm:text-sm"
+            title="Mevcut Eseri Manuel Kaydet"
+          >
+            <span>💾</span>
+            <span className="hidden sm:inline">Kaydet</span>
+          </button>
+
+          {/* New / Clear Artwork Button */}
+          <button
+            onClick={() => setIsResetConfirmOpen(true)}
+            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-rose-500 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1 cursor-pointer text-xs sm:text-sm"
+            title="Yeni Çalışma Aç / Temizle"
+          >
+            <span>✨</span>
+            <span className="hidden sm:inline">Yeni</span>
+          </button>
+
           <button
             onClick={handleCycleTheme}
-            className="px-3 sm:px-5 py-2 sm:py-3 bg-white text-slate-700 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer text-xs sm:text-base"
+            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-slate-700 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm"
             title="Sahne Temasını Değiştir"
           >
             <span className="text-base sm:text-lg">{activeStudioTheme.emoji}</span>
             <span className="hidden md:inline">{activeStudioTheme.name}</span>
-            <Palette size={16} className="sm:w-5 sm:h-5 text-purple-500 md:hidden" />
+            <Palette size={16} className="sm:w-5 sm:h-5 text-purple-500 md:hidden shrink-0" />
           </button>
+
           <button
             onClick={() => {
               if (isMusicPlaying) stopBackgroundMusic();
@@ -935,25 +1153,27 @@ export default function App() {
               setIsMusicPlaying(!isMusicPlaying);
               playPop();
             }}
-            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-lg border-b-4 transition-all cursor-pointer ${
+            className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center shadow-lg border-b-4 transition-all cursor-pointer ${
               isMusicPlaying 
                 ? 'bg-amber-400 border-amber-600 text-white' 
                 : 'bg-white text-slate-400 border-slate-200'
             }`}
           >
-            <Music size={20} className="sm:w-6 sm:h-6" />
+            <Music size={18} className="sm:w-5 sm:h-5" />
           </button>
+
           <button
             onClick={handleDownloadSnapshot}
-            className="px-4 sm:px-6 py-2 sm:py-3 bg-white text-slate-700 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer text-xs sm:text-base"
+            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-slate-700 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm"
           >
-            <Camera size={16} className="sm:w-5 sm:h-5 text-pink-400" />
-            <span className="hidden xs:inline">📸 Fotoğraf ✨</span>
+            <Camera size={16} className="sm:w-5 sm:h-5 text-pink-400 shrink-0" />
+            <span className="hidden xs:inline">📸 Fotoğraf</span>
           </button>
+
           {isAnimating && (
             <button
               onClick={() => setIsAnimating(false)}
-              className="px-4 sm:px-7 py-2 sm:py-3 bg-rose-500 text-white font-black rounded-full shadow-lg border-b-4 border-rose-700 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 text-xs sm:text-base"
+              className="px-3 sm:px-5 py-2 sm:py-2.5 bg-rose-500 text-white font-black rounded-full shadow-lg border-b-4 border-rose-700 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
             >
               <StopCircle size={16} className="sm:w-5 sm:h-5" />
               🛑 Durdur
@@ -1070,9 +1290,12 @@ export default function App() {
                   >
                     <span className="truncate pr-1">{getRegionLabel(currentModel, r)}</span>
                     <div
-                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white shadow-md ring-1 ring-black/10 transition-transform duration-200 group-hover:scale-110 shrink-0"
-                      style={{ backgroundColor: resolvedColor }}
-                    />
+                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white shadow-md ring-1 ring-black/10 transition-transform duration-200 group-hover:scale-110 shrink-0 flex items-center justify-center text-[10px]"
+                      style={{ backgroundColor: getDisplayColor(resolvedColor) }}
+                    >
+                      {resolvedColor.startsWith('glitter:') && '✨'}
+                      {resolvedColor.startsWith('pattern:') && '🎨'}
+                    </div>
                   </button>
                 );
               })}
@@ -1172,6 +1395,34 @@ export default function App() {
       )}
 
       {/* MODALS */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl border-4 border-pink-300 text-center flex flex-col items-center gap-5">
+            <div className="w-20 h-20 bg-pink-100 rounded-[2rem] flex items-center justify-center text-5xl shadow-inner border-2 border-pink-200">🧼</div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800">Çalışmayı Sıfırla?</h2>
+              <p className="text-slate-600 font-bold text-sm mt-2">
+                {modelNames[currentModel]} üzerindeki tüm renk, desen ve süslemeleri temizlemek istediğine emin misin?
+              </p>
+            </div>
+            <div className="flex items-center gap-3 w-full">
+              <button
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-2xl border-2 border-slate-200 transition-all cursor-pointer"
+              >
+                Vazgeç ❌
+              </button>
+              <button
+                onClick={handleConfirmReset}
+                className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-2xl shadow-lg border-b-4 border-rose-700 transition-all cursor-pointer"
+              >
+                Evet, Temizle 🧼
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAnimateModalOpen && (
         <AnimateModal
           characterName={mode === 'draw_3d' ? '3D Tasarımın' : modelNames[currentModel]}

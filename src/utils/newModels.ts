@@ -954,6 +954,7 @@ export function createDog(colors?: Record<string, string>): THREE.Group {
 
   const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 24, 24), headMat);
   headMesh.scale.set(1.08, 0.95, 1.05);
+  headMesh.name = 'head';
   headGroup.add(headMesh);
 
   // Beyaz Sevimli Ağızlık (Snout)
@@ -963,11 +964,11 @@ export function createDog(colors?: Record<string, string>): THREE.Group {
   snout.name = 'snout';
   headGroup.add(snout);
 
-  // Parlak Siyah Düğme Burun (Nose - En Önemli Kısım!)
+  // Parlak Siyah Düğme Burun (Nose)
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), noseMat);
   nose.scale.set(1.2, 0.85, 0.9);
   nose.position.set(0, -0.05, 1.08);
-  nose.name = 'snout';
+  nose.name = 'nose';
   headGroup.add(nose);
 
   // Dışarı Sarkan Tatlı Pembe Dil (Tongue)
@@ -975,6 +976,7 @@ export function createDog(colors?: Record<string, string>): THREE.Group {
   tongue.scale.set(1.0, 0.4, 1.4);
   tongue.position.set(0.04, -0.28, 1.02);
   tongue.rotation.x = 0.25;
+  tongue.name = 'tongue';
   headGroup.add(tongue);
 
   // Yanak Allıkları (Blush)
@@ -983,6 +985,7 @@ export function createDog(colors?: Record<string, string>): THREE.Group {
     const blush = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), blushMat);
     blush.scale.set(1.1, 0.6, 0.2);
     blush.position.set(s * 0.55, -0.12, 0.68);
+    blush.name = s === -1 ? 'blush_L' : 'blush_R';
     headGroup.add(blush);
   }
 
@@ -998,10 +1001,12 @@ export function createDog(colors?: Record<string, string>): THREE.Group {
 
     const g1 = new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 12), glintMat);
     g1.position.set(s * 0.03, 0.05, 0.06);
+    g1.name = 'glint';
     eyePivot.add(g1);
 
     const g2 = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), glintMat);
     g2.position.set(s * -0.03, -0.03, 0.06);
+    g2.name = 'glint';
     eyePivot.add(g2);
 
     headGroup.add(eyePivot);
