@@ -119,6 +119,7 @@ export default function App() {
   const [animationAction, setAnimationAction] = useState<'dance' | 'jump' | 'fly' | 'confetti'>('dance');
   const [story, setStory] = useState('');
   const [isStoryLoading, setIsStoryLoading] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'none' | 'model' | 'regions' | 'paint' | 'accessories'>('none');
 
   // Boyobot Companion Message
   const [boyobotMsg, setBoyobotMsg] = useState(
@@ -1030,7 +1031,7 @@ export default function App() {
   };
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-[#f7f9fe] flex flex-col justify-between font-['Fredoka',sans-serif]">
+    <main className="relative w-screen h-dvh overflow-hidden bg-[#f7f9fe] flex flex-col justify-between font-['Fredoka',sans-serif] pb-[env(safe-area-inset-bottom)]">
       {/* 3D Viewport - Fixed to background */}
       <div className="fixed inset-0 z-0 overflow-hidden">
         <ThreeCanvas
@@ -1066,32 +1067,35 @@ export default function App() {
       </div>
 
       {/* HEADER */}
-      <header className="relative z-10 w-full px-4 sm:px-6 pt-2 sm:pt-4 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2 sm:gap-4">
+      <header className="relative z-10 w-full px-2 sm:px-6 pt-[max(0.35rem,env(safe-area-inset-top))] sm:pt-4 flex items-center justify-between pointer-events-none gap-1 sm:gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-3 pointer-events-auto shrink-0">
           <button
             onClick={() => { playPop(); if (isAnimating) setIsAnimating(false); else setIsLibraryModalOpen(true); }}
-            className="pointer-events-auto w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center text-sky-500 shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer"
+            className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center text-sky-500 shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer"
+            title="Ana Menü / Galeri"
           >
-            <Home size={20} className="sm:w-6 sm:h-6" />
+            <Home size={16} className="sm:w-6 sm:h-6" />
           </button>
           <button
             onClick={() => { playMagic(); setIsDrawingModalOpen(true); }}
-            className="pointer-events-auto px-4 sm:px-6 py-2 sm:py-3 bg-indigo-500 text-white font-black rounded-full shadow-lg border-b-4 border-indigo-700 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer text-xs sm:text-base animate-pulse"
+            className="px-2 sm:px-5 py-1.5 sm:py-2.5 bg-indigo-500 text-white font-black rounded-full shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-indigo-700 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1 sm:gap-2 cursor-pointer text-[11px] sm:text-base animate-pulse shrink-0"
+            title="Sihirli Çizim Fırını"
           >
-            <Sparkles size={16} className="sm:w-5 sm:h-5" />
-            <span className="hidden xs:inline">✨ Sihirli Fırın 🎨</span>
+            <Sparkles size={13} className="sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline">✨ Sihirli Fırın 🎨</span>
+            <span className="sm:hidden font-bold">Fırın</span>
           </button>
-          <h1 className="text-xl sm:text-3xl font-black tracking-tight flex flex-col sm:flex-row sm:items-center sm:gap-2 pointer-events-auto leading-tight">
+          <h1 className="text-xs sm:text-3xl font-black tracking-tight flex items-center gap-1 leading-tight shrink-0">
             <span className="text-pink-500 drop-shadow-sm">3D BOYAMA</span>
-            <span className="text-sky-500 drop-shadow-sm hidden sm:inline">STÜDYOSU</span>
+            <span className="text-sky-500 drop-shadow-sm hidden md:inline">STÜDYOSU</span>
           </h1>
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-end">
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 justify-end shrink-0">
           {/* Auto Save Status Badge & Toggle */}
           <button
             onClick={handleToggleAutoSave}
-            className={`px-2.5 sm:px-3 py-1.5 sm:py-2.5 rounded-full font-black text-[10px] sm:text-xs flex items-center gap-1 shadow-md border-b-2 transition-all cursor-pointer ${
+            className={`h-8 px-2 sm:h-auto sm:px-3 py-1 sm:py-2 rounded-full font-black text-[10px] sm:text-xs flex items-center justify-center gap-1 shadow-md border-b-2 transition-all cursor-pointer ${
               saveStatus === 'saving'
                 ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
                 : saveStatus === 'saved'
@@ -1100,18 +1104,18 @@ export default function App() {
                 ? 'bg-rose-50 text-rose-700 border-rose-300'
                 : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
             }`}
-            title="Otomatik Kaydı Aç/Kapat"
+            title={saveStatus === 'saving' ? 'Kaydediliyor…' : saveStatus === 'saved' ? 'Otomatik Kaydedildi ✓' : 'Otomatik Kayıt'}
           >
             <span className="text-xs sm:text-sm">
               {saveStatus === 'saving' ? '⏳' : saveStatus === 'saved' ? '✓' : saveStatus === 'failed' ? '⚠️' : '💾'}
             </span>
-            <span className="hidden xs:inline">
+            <span className="hidden sm:inline">
               {saveStatus === 'saving'
                 ? 'Kaydediliyor…'
                 : saveStatus === 'saved'
-                ? 'Otomatik kaydedildi ✓'
+                ? 'Oto Kayıt ✓'
                 : saveStatus === 'failed'
-                ? 'Kayıt başarısız'
+                ? 'Hata'
                 : 'Oto Kapalı'}
             </span>
           </button>
@@ -1119,7 +1123,7 @@ export default function App() {
           {/* Manual Save Button */}
           <button
             onClick={handleManualSave}
-            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black rounded-full shadow-lg border-b-4 border-emerald-700 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1 cursor-pointer text-xs sm:text-sm"
+            className="w-8 h-8 sm:w-auto sm:px-4 sm:py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black rounded-full shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-emerald-700 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1 cursor-pointer text-xs sm:text-sm"
             title="Mevcut Eseri Manuel Kaydet"
           >
             <span>💾</span>
@@ -1129,23 +1133,24 @@ export default function App() {
           {/* New / Clear Artwork Button */}
           <button
             onClick={() => setIsResetConfirmOpen(true)}
-            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-rose-500 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1 cursor-pointer text-xs sm:text-sm"
+            className="w-8 h-8 sm:w-auto sm:px-4 sm:py-2 bg-white text-rose-500 font-bold rounded-full shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1 cursor-pointer text-xs sm:text-sm"
             title="Yeni Çalışma Aç / Temizle"
           >
             <span>✨</span>
             <span className="hidden sm:inline">Yeni</span>
           </button>
 
+          {/* Cycle theme button */}
           <button
             onClick={handleCycleTheme}
-            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-slate-700 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm"
+            className="w-8 h-8 sm:w-auto sm:px-4 sm:py-2 bg-white text-slate-700 font-bold rounded-full shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm"
             title="Sahne Temasını Değiştir"
           >
-            <span className="text-base sm:text-lg">{activeStudioTheme.emoji}</span>
+            <span className="text-sm sm:text-lg">{activeStudioTheme.emoji}</span>
             <span className="hidden md:inline">{activeStudioTheme.name}</span>
-            <Palette size={16} className="sm:w-5 sm:h-5 text-purple-500 md:hidden shrink-0" />
           </button>
 
+          {/* Music button */}
           <button
             onClick={() => {
               if (isMusicPlaying) stopBackgroundMusic();
@@ -1153,39 +1158,44 @@ export default function App() {
               setIsMusicPlaying(!isMusicPlaying);
               playPop();
             }}
-            className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center shadow-lg border-b-4 transition-all cursor-pointer ${
+            className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center shadow-md sm:shadow-lg border-b-2 sm:border-b-4 transition-all cursor-pointer ${
               isMusicPlaying 
                 ? 'bg-amber-400 border-amber-600 text-white' 
                 : 'bg-white text-slate-400 border-slate-200'
             }`}
+            title="Arka Plan Müziği"
           >
-            <Music size={18} className="sm:w-5 sm:h-5" />
+            <Music size={15} className="sm:w-5 sm:h-5" />
           </button>
 
+          {/* Snapshot button */}
           <button
             onClick={handleDownloadSnapshot}
-            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white text-slate-700 font-bold rounded-full shadow-lg border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm"
+            className="w-8 h-8 sm:w-auto sm:px-4 sm:py-2 bg-white text-slate-700 font-bold rounded-full shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm"
+            title="Fotoğraf Çek"
           >
-            <Camera size={16} className="sm:w-5 sm:h-5 text-pink-400 shrink-0" />
-            <span className="hidden xs:inline">📸 Fotoğraf</span>
+            <Camera size={14} className="sm:w-5 sm:h-5 text-pink-400 shrink-0" />
+            <span className="hidden sm:inline">Fotoğraf</span>
           </button>
 
           {isAnimating && (
             <button
               onClick={() => setIsAnimating(false)}
-              className="px-3 sm:px-5 py-2 sm:py-2.5 bg-rose-500 text-white font-black rounded-full shadow-lg border-b-4 border-rose-700 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
+              className="px-2.5 sm:px-5 py-1.5 sm:py-2.5 bg-rose-500 text-white font-black rounded-full shadow-md sm:shadow-lg border-b-2 sm:border-b-4 border-rose-700 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
             >
-              <StopCircle size={16} className="sm:w-5 sm:h-5" />
-              🛑 Durdur
+              <StopCircle size={14} className="sm:w-5 sm:h-5" />
+              <span>Durdur</span>
             </button>
           )}
         </div>
       </header>
 
-      {/* CENTER ROW */}
-      <div className="relative z-10 flex-1 w-full px-4 sm:px-6 flex items-center justify-between pointer-events-none gap-2 sm:gap-6 overflow-hidden">
+
+
+      {/* CENTER ROW (Desktop sidebars side-by-side) */}
+      <div className="relative z-10 flex-1 w-full px-4 sm:px-6 hidden sm:flex items-center justify-between pointer-events-none gap-2 sm:gap-6 overflow-hidden">
         {/* LEFT SIDEBAR - Responsive & Modernized */}
-        <aside className="flex flex-col gap-2.5 sm:gap-3.5 pointer-events-auto w-40 xs:w-48 sm:w-64 max-h-[82vh] select-none">
+        <aside className="flex flex-col gap-2 sm:gap-3 pointer-events-auto w-44 sm:w-64 max-h-[76vh] select-none overflow-y-auto kawaii-scrollbar pr-0.5">
           {/* 1. SEÇ - Hayvan Seçimi Card */}
           <div className="bg-gradient-to-br from-white via-sky-50/60 to-indigo-50/40 backdrop-blur-lg p-2.5 sm:p-4 rounded-[2rem] shadow-2xl border-3 sm:border-4 border-sky-100/90 flex flex-col gap-2 sm:gap-3 relative overflow-hidden">
             <div aria-hidden="true" className="absolute inset-0 pointer-events-none select-none opacity-20">
@@ -1275,7 +1285,7 @@ export default function App() {
               <span className="hidden xs:inline">BOYAMA BÖLGELERİ</span>
               <span className="xs:hidden">BÖLGELER</span>
             </span>
-            <div className="flex flex-col gap-2 overflow-y-auto pr-1 kawaii-scrollbar max-h-[38vh]">
+            <div className="flex flex-col gap-1.5 overflow-y-auto pr-1 kawaii-scrollbar max-h-[20vh] sm:max-h-[38vh]">
               {getRegions().map((r) => {
                 const resolvedColor = modelPartColors[r] || getDefaultColor(currentModel, r);
                 return (
@@ -1323,29 +1333,257 @@ export default function App() {
         </aside>
       </div>
 
-      {/* FOOTER */}
-      <footer className="relative z-10 w-full px-4 sm:px-8 pb-4 sm:pb-8 flex items-end justify-between pointer-events-none gap-2 sm:gap-8">
-        <div className="flex items-center gap-2 sm:gap-3 pointer-events-auto bg-white/90 backdrop-blur-md p-1.5 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-xl border border-white">
-          <button onClick={handleRotate} className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-sky-600 shadow-md border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all"><RotateCw size={18} className="sm:w-5 sm:h-5" /></button>
-          <button onClick={handleZoom} className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-sky-600 shadow-md border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all"><ZoomIn size={18} className="sm:w-5 sm:h-5" /></button>
-          <button onClick={handleUndo} className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-slate-600 shadow-md border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all"><Undo size={18} className="sm:w-5 sm:h-5" /></button>
-          <button onClick={handleReset} className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-rose-500 shadow-md border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all"><RotateCcw size={18} className="sm:w-5 sm:h-5" /></button>
+      {/* MOBILE BOTTOM SHEET MODAL (< sm portrait) */}
+      {mobileTab !== 'none' && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-end sm:hidden">
+          {/* Backdrop Dismiss Area */}
+          <div className="absolute inset-0" onClick={() => setMobileTab('none')} />
+
+          <div className="relative w-full max-h-[52vh] bg-white rounded-t-[2.25rem] p-3.5 shadow-2xl border-t-4 border-indigo-300 flex flex-col gap-2.5 overflow-hidden animate-in slide-in-from-bottom duration-200 z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {/* Drawer Handle & Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+              <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto absolute top-2 left-1/2 -translate-x-1/2" />
+              <span className="font-black text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
+                {mobileTab === 'model' && '🐾 Hayvan & Karakter Seç'}
+                {mobileTab === 'regions' && '🎯 Boyama Bölgeleri'}
+                {mobileTab === 'paint' && '🎨 Boya, Renkler & Fırça'}
+                {mobileTab === 'accessories' && '💖 Aksesuarlar & Süsler'}
+              </span>
+              <button
+                onClick={() => setMobileTab('none')}
+                className="w-7 h-7 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-full flex items-center justify-center text-slate-600 font-black text-xs cursor-pointer"
+                title="Kapat"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* TAB CONTENT: MODEL SELECTOR */}
+            {mobileTab === 'model' && (
+              <div className="flex-1 overflow-y-auto kawaii-scrollbar flex flex-col gap-2.5 pr-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500">Boyamak istediğin hayvanı seç:</span>
+                  <button
+                    onClick={() => {
+                      playPop();
+                      setIsLibraryModalOpen(true);
+                      setMobileTab('none');
+                    }}
+                    className="px-2.5 py-1 bg-gradient-to-r from-sky-400 to-indigo-500 text-white font-black text-[10px] rounded-full shadow-xs cursor-pointer active:scale-95"
+                  >
+                    Tüm Modeller ✨
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 xs:grid-cols-5 gap-2 pb-2">
+                  {ALL_MODELS.filter((m) => m.category === 'animals').slice(0, 16).map((m) => {
+                    const isSelected = currentModel === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          handleSelectModel(m.id);
+                          setMobileTab('none');
+                        }}
+                        className={`w-full aspect-square rounded-2xl flex flex-col items-center justify-center border-2 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-sky-400 border-white text-white shadow-md scale-105 ring-2 ring-sky-200'
+                            : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-white'
+                        }`}
+                      >
+                        <span className="text-2xl">{m.emoji}</span>
+                        <span className="text-[9px] font-bold truncate max-w-full px-1">{m.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: REGIONS */}
+            {mobileTab === 'regions' && (
+              <div className="flex-1 overflow-y-auto kawaii-scrollbar flex flex-col gap-2 pr-0.5 pb-2">
+                <p className="text-[11px] text-slate-500 font-semibold">
+                  Bir bölgeye dokunarak boyayabilirsin (Aktif Renk: {activeColor}):
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {getRegions().map((r) => {
+                    const resolvedColor = modelPartColors[r] || getDefaultColor(currentModel, r);
+                    return (
+                      <button
+                        key={r}
+                        onClick={() => {
+                          playPop();
+                          setActiveTool('bucket');
+                          handleModelPartColorChange(r, activeColor);
+                        }}
+                        className="px-2.5 py-2.5 bg-slate-50 hover:bg-purple-50 active:bg-purple-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer shadow-2xs"
+                      >
+                        <span className="truncate pr-1 text-[11px]">{getRegionLabel(currentModel, r)}</span>
+                        <div
+                          className="w-5 h-5 rounded-full border-2 border-white shadow-sm shrink-0 flex items-center justify-center text-[9px]"
+                          style={{ backgroundColor: getDisplayColor(resolvedColor) }}
+                        >
+                          {resolvedColor.startsWith('glitter:') && '✨'}
+                          {resolvedColor.startsWith('pattern:') && '🎨'}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: PAINT & COLORS */}
+            {mobileTab === 'paint' && (
+              <div className="flex-1 overflow-y-auto kawaii-scrollbar flex justify-center w-full pb-2">
+                <RightPalette
+                  activeTool={activeTool}
+                  onSelectTool={setActiveTool}
+                  activeColor={activeColor}
+                  activeColorType={activeColorType}
+                  onSelectColor={(p) => { setActiveColor(p.color); setActiveColorType(p.type); playPop(); }}
+                  activeStickerEmoji={activeStickerEmoji}
+                  onSelectSticker={(e) => { setActiveStickerEmoji(e); setActiveTool('sticker'); playMagic(); }}
+                  stickerSize={stickerSize}
+                  onStickerSizeChange={setStickerSize}
+                  brushSize={brushSize}
+                  onBrushSizeChange={setBrushSize}
+                  onUndo={handleUndo}
+                  onClearStickers={handleClearStickers}
+                  initialTab="paint"
+                  isMobileModal={true}
+                />
+              </div>
+            )}
+
+            {/* TAB CONTENT: ACCESSORIES & STICKERS */}
+            {mobileTab === 'accessories' && (
+              <div className="flex-1 overflow-y-auto kawaii-scrollbar flex flex-col gap-3 pb-2">
+                {/* 3D Accessories Toggle */}
+                <div className="bg-amber-50/80 p-2.5 rounded-2xl border border-amber-200/90">
+                  <span className="font-black text-amber-900 text-xs flex items-center gap-1.5 mb-2">
+                    <span>✨</span> 3D Aksesuarlar (Tak / Çıkar)
+                  </span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 'crown', emoji: '👑', label: 'Taç' },
+                      { id: 'bow', emoji: '🎀', label: 'Fiyonk' },
+                      { id: 'glasses', emoji: '👓', label: 'Gözlük' },
+                      { id: 'wings', emoji: '🪽', label: 'Kanat' },
+                    ].map((acc) => {
+                      const isSelected = activeAccessories.includes(acc.id as AccessoryId);
+                      return (
+                        <button
+                          key={acc.id}
+                          onClick={() => handleToggleAccessory(acc.id as AccessoryId)}
+                          className={`w-full aspect-square rounded-2xl flex flex-col items-center justify-center border-2 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-400 border-white text-amber-950 shadow-md scale-105'
+                              : 'bg-white border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <span className="text-2xl">{acc.emoji}</span>
+                          <span className="text-[10px] font-bold">{acc.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Sticker Palette */}
+                <div className="flex justify-center w-full">
+                  <RightPalette
+                    activeTool={activeTool}
+                    onSelectTool={setActiveTool}
+                    activeColor={activeColor}
+                    activeColorType={activeColorType}
+                    onSelectColor={(p) => { setActiveColor(p.color); setActiveColorType(p.type); playPop(); }}
+                    activeStickerEmoji={activeStickerEmoji}
+                    onSelectSticker={(e) => { setActiveStickerEmoji(e); setActiveTool('sticker'); playMagic(); }}
+                    stickerSize={stickerSize}
+                    onStickerSizeChange={setStickerSize}
+                    brushSize={brushSize}
+                    onBrushSizeChange={setBrushSize}
+                    onUndo={handleUndo}
+                    onClearStickers={handleClearStickers}
+                    initialTab="accessories"
+                    isMobileModal={true}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* FOOTER - Floating controls above bottom dock on mobile */}
+      <footer className="relative z-10 w-full px-2 sm:px-8 pb-16 sm:pb-8 flex items-end justify-between pointer-events-none gap-2 sm:gap-8">
+        <div className="flex items-center gap-1 sm:gap-3 pointer-events-auto bg-white/90 backdrop-blur-md p-1 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-xl border border-white shrink-0">
+          <button onClick={handleRotate} className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-sky-600 shadow-md border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer" title="Döndür"><RotateCw size={15} className="sm:w-5 sm:h-5" /></button>
+          <button onClick={handleZoom} className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-sky-600 shadow-md border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer" title="Yakınlaştır"><ZoomIn size={15} className="sm:w-5 sm:h-5" /></button>
+          <button onClick={handleUndo} className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-slate-600 shadow-md border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer" title="Geri Al"><Undo size={15} className="sm:w-5 sm:h-5" /></button>
+          <button onClick={handleReset} className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-lg sm:rounded-2xl flex items-center justify-center text-rose-500 shadow-md border-b-2 sm:border-b-4 border-slate-200 hover:translate-y-0.5 active:border-b-0 transition-all cursor-pointer" title="Sıfırla"><RotateCcw size={15} className="sm:w-5 sm:h-5" /></button>
         </div>
 
-        <div className="pointer-events-auto flex-1 max-w-xl hidden xs:block">
+        <div className="pointer-events-auto flex-1 max-w-xl hidden md:block">
           <BoyobotDialogue message={boyobotMsg} onAskTip={handleAskTip} isLoading={isBoyobotThinking} task={task} />
         </div>
 
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto shrink-0">
           <button
             onClick={handleOpenAnimate}
-            className="px-6 sm:px-10 py-3.5 sm:py-5 bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black text-sm sm:text-2xl rounded-2xl sm:rounded-[2.5rem] shadow-2xl border-b-6 sm:border-b-8 border-emerald-700 hover:translate-y-1 active:border-b-0 transition-all flex items-center gap-2 sm:gap-4 group"
+            className="px-3 sm:px-10 py-2 sm:py-5 bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black text-xs sm:text-2xl rounded-xl sm:rounded-[2.5rem] shadow-xl sm:shadow-2xl border-b-2 sm:border-b-8 border-emerald-700 hover:translate-y-0.5 sm:hover:translate-y-1 active:border-b-0 transition-all flex items-center gap-1.5 sm:gap-4 group cursor-pointer"
           >
-            <Sparkles size={20} className="sm:w-7 sm:h-7 group-hover:animate-spin" />
+            <Sparkles size={16} className="sm:w-7 sm:h-7 group-hover:animate-spin" />
             <span>CANLANDIR!</span>
           </button>
         </div>
       </footer>
+
+      {/* MOBILE BOTTOM DOCK TOOLBAR (< sm portrait) */}
+      <div className="sm:hidden fixed bottom-1 inset-x-2 z-30 pointer-events-auto">
+        <nav aria-label="Mobil Araç Çubuğu" className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-indigo-100/90 p-1 flex items-center justify-between gap-1">
+          <button
+            onClick={() => { playPop(); setMobileTab(mobileTab === 'model' ? 'none' : 'model'); }}
+            className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+              mobileTab === 'model' ? 'bg-sky-500 text-white shadow-md scale-102' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span className="text-base">🐾</span>
+            <span className="text-[10px] font-black tracking-tight">Model</span>
+          </button>
+
+          <button
+            onClick={() => { playPop(); setMobileTab(mobileTab === 'regions' ? 'none' : 'regions'); }}
+            className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+              mobileTab === 'regions' ? 'bg-purple-500 text-white shadow-md scale-102' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span className="text-base">🎯</span>
+            <span className="text-[10px] font-black tracking-tight">Bölgeler</span>
+          </button>
+
+          <button
+            onClick={() => { playPop(); setMobileTab(mobileTab === 'paint' ? 'none' : 'paint'); }}
+            className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+              mobileTab === 'paint' ? 'bg-pink-500 text-white shadow-md scale-102' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span className="text-base">🎨</span>
+            <span className="text-[10px] font-black tracking-tight">Boya</span>
+          </button>
+
+          <button
+            onClick={() => { playMagic(); setMobileTab(mobileTab === 'accessories' ? 'none' : 'accessories'); }}
+            className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+              mobileTab === 'accessories' ? 'bg-amber-400 text-amber-950 shadow-md scale-102' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span className="text-base">💖</span>
+            <span className="text-[10px] font-black tracking-tight">Aksesuar</span>
+          </button>
+        </nav>
+      </div>
 
       {/* LIVE ANIMATION 4-ACTION BAR (1, 2, 3, 4 Shortcuts & Touch Bar) */}
       {isAnimating && (

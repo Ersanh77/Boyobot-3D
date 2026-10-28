@@ -17,6 +17,8 @@ interface RightPaletteProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onClearStickers?: () => void;
+  initialTab?: 'paint' | 'accessories';
+  isMobileModal?: boolean;
 }
 
 export const RightPalette: React.FC<RightPaletteProps> = ({
@@ -34,10 +36,12 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
   onUndo,
   onRedo,
   onClearStickers,
+  initialTab,
+  isMobileModal = false,
 }) => {
   // Main Tabs: 'paint' (Boya & Renkler), 'accessories' (Aksesuarlar & Süsler)
   const [tab, setTab] = useState<'paint' | 'accessories'>(() =>
-    activeTool === 'sticker' ? 'accessories' : 'paint'
+    initialTab || (activeTool === 'sticker' ? 'accessories' : 'paint')
   );
 
   // Sub-category for colors
@@ -95,11 +99,19 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
     }
   }, [activeColorType]);
 
-  // Color Category Tabs
+  // Sync tab with initialTab when requested from mobile bottom sheet
+  React.useEffect(() => {
+    if (initialTab) {
+      setTab(initialTab);
+    }
+  }, [initialTab]);
+
   return (
     <aside
       aria-label="Boyama ve Aksesuar Paneli"
-      className="w-36 xs:w-40 sm:w-44 md:w-52 bg-white/95 backdrop-blur-lg rounded-[2.5rem] border-4 border-sky-100/90 shadow-2xl p-2.5 sm:p-3.5 flex flex-col items-center gap-3.5 max-h-[92vh] overflow-y-auto z-10 kawaii-scrollbar select-none"
+      className={`w-full max-w-sm sm:w-44 md:w-52 bg-white/95 backdrop-blur-lg rounded-[2rem] sm:rounded-[2.5rem] border-3 sm:border-4 border-sky-100/90 shadow-2xl p-2.5 sm:p-3 flex flex-col items-center gap-2.5 sm:gap-3.5 max-h-[50vh] sm:max-h-[88vh] overflow-y-auto z-10 kawaii-scrollbar select-none ${
+        isMobileModal ? 'border-0 shadow-none bg-transparent p-1 max-h-none' : ''
+      }`}
     >
       {/* 1. Main Mode Tabs */}
       <div className="flex flex-col gap-2 w-full shrink-0">
@@ -157,7 +169,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
           </label>
 
           {/* Brush/Bucket/Spray/Eraser Tools */}
-          <div className="grid grid-cols-2 gap-2 w-full">
+          <div className="grid grid-cols-4 sm:grid-cols-2 gap-1.5 sm:gap-2 w-full">
             {[
               { id: 'brush', icon: '🖌️', label: 'Fırça', bg: 'from-sky-400 to-blue-500' },
               { id: 'bucket', icon: '🪣', label: 'Kova', bg: 'from-amber-400 to-orange-400' },
@@ -172,7 +184,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
                     t.id === 'spray' ? playSpray() : playPop();
                     onSelectTool(t.id as PaintTool);
                   }}
-                  className={`h-14 sm:h-15 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 cursor-pointer btn-press border-2 ${
+                  className={`h-11 sm:h-14 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 cursor-pointer btn-press border-2 ${
                     isActive
                       ? `bg-gradient-to-tr ${t.bg} text-white scale-105 border-white ring-4 ring-sky-100 shadow-lg -translate-y-0.5`
                       : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200/80 hover:-translate-y-0.5'
@@ -259,7 +271,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
               <span className="absolute bottom-1 right-2 text-[10px] opacity-20 filter drop-shadow-2xs">🌸</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2.5 w-full justify-items-center relative z-10 py-0.5">
+            <div className="grid grid-cols-4 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full justify-items-center relative z-10 py-0.5">
               {(colorCategory === 'solid' ? solidColors : colorCategory === 'glitter' ? glitterColors : patternColors).map((preset) => {
                 const isSelected = (activeColor === preset.color || activeColor === preset.patternId) && activeColorType === preset.type;
 
@@ -287,7 +299,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
                     }}
                     style={bgStyle}
                     title={preset.name}
-                    className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full shadow-md border-3 border-white transition-all duration-200 flex items-center justify-center cursor-pointer btn-press ${
+                    className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full shadow-md border-3 border-white transition-all duration-200 flex items-center justify-center cursor-pointer btn-press min-h-[36px] min-w-[36px] ${
                       isSelected
                         ? 'scale-125 ring-4 ring-pink-400 shadow-xl z-10 -translate-y-0.5'
                         : 'hover:scale-110 hover:-translate-y-0.5'
@@ -330,7 +342,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
       {tab === 'accessories' && (
         <div className="flex flex-col gap-3.5 w-full">
           {/* Accessory Categories */}
-          <div className="grid grid-cols-2 gap-1.5 w-full bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80">
+          <div className="grid grid-cols-4 sm:grid-cols-2 gap-1.5 w-full bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80">
             {Object.entries(accessories).map(([key, data]) => {
               const isActive = accessoryCat === key;
               return (
@@ -345,7 +357,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
                   }`}
                 >
                   <span className="text-base sm:text-lg">{data.icon}</span>
-                  <span>{data.label}</span>
+                  <span className="truncate max-w-full">{data.label}</span>
                 </button>
               );
             })}
@@ -385,7 +397,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
           </div>
 
           {/* Emoji Grid */}
-          <div className="grid grid-cols-3 gap-2.5 w-full justify-items-center py-1">
+          <div className="grid grid-cols-4 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full justify-items-center py-1">
             {currentEmojiList.map((emoji, idx) => {
               const isSelected = activeTool === 'sticker' && activeStickerEmoji === emoji;
               return (
@@ -395,7 +407,7 @@ export const RightPalette: React.FC<RightPaletteProps> = ({
                     playBoing();
                     onSelectSticker(emoji);
                   }}
-                  className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-2xl transition-all duration-200 cursor-pointer btn-press border-2 ${
+                  className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-xl sm:text-2xl transition-all duration-200 cursor-pointer btn-press border-2 min-h-[44px] min-w-[44px] ${
                     isSelected
                       ? 'bg-amber-200 border-amber-400 scale-125 ring-4 ring-amber-300 shadow-xl z-10 -translate-y-0.5'
                       : 'bg-white hover:bg-amber-50 border-slate-200/80 hover:-translate-y-0.5 hover:shadow-md'
